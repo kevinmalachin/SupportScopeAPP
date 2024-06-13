@@ -19,10 +19,10 @@ def normalize_name(name):
 
 def main():
     # Percorso del file HTML locale
-    html_file_path = r'C:\Users\kevin\Documents\Automatizzazioni\Bouygues.html'
+    html_file_path = '/Users/kevin.malachin/Documents/GitHub/SupportScopeSheets&HTML/Dior.html'
     
     # Percorso del file Excel locale
-    excel_file_path = r'C:\Users\kevin\Documents\Automatizzazioni\Bouygues.xlsx'
+    excel_file_path = '/Users/kevin.malachin/Documents/GitHub/SupportScopeAP/PBouygues.xlsx'
 
     # Leggi il contenuto del file HTML
     website_content = read_html_content(html_file_path)

@@ -1,0 +1,12 @@
+.env
+.vscode
+.idea
+.pyc
+.class
+build/
+dist/
+target/
+*.log
+logs/
+log/
+tempCodeRunner

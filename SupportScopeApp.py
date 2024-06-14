@@ -13,60 +13,114 @@ def read_html_content(html_file_path):
         print(f"Errore durante la lettura del file HTML: {e}")
         return None
 
-def normalize_name(name):
-    # Esempio di normalizzazione: converti tutto in minuscolo e rimuovi spazi bianchi
-    return name.strip().lower()
-
-def main():
-    # Percorso del file HTML locale
-    html_file_path = '/Users/kevin.malachin/Documents/GitHub/SupportScopeSheets&HTML/Dior.html'
-    
-    # Percorso del file Excel locale
-    excel_file_path = '/Users/kevin.malachin/Documents/GitHub/SupportScopeAP/PBouygues.xlsx'
-
-    # Leggi il contenuto del file HTML
-    website_content = read_html_content(html_file_path)
-    if website_content is None:
-        return
-
-    # Crea l'oggetto BeautifulSoup
-    soup = BeautifulSoup(website_content, 'html.parser')
-
-    # Trova tutti i tag <a> con le classi specificate
-    classToFind = soup.find_all('a', class_='sc-csuQGl fgtqry')
-
-    # Estrai i testi di ogni tag trovato e normalizzali
-    html_texts = {normalize_name(tag.get_text()) for tag in classToFind}
-
-    # Gestione degli errori durante la lettura del file Excel
+def extract_applications_from_html(html_content, class_name, filtered_excel_apps):
     try:
-        df = pd.read_excel(excel_file_path, sheet_name='APIs Scope')
-    except FileNotFoundError:
-        print(f"File Excel non trovato: {excel_file_path}")
-        return
+        soup = BeautifulSoup(html_content, 'html.parser')
+        applications = set()
+        elements = soup.find_all(class_=class_name)
+
+        for element in elements:
+            app_name = element.text.strip().lower()
+            if app_name in filtered_excel_apps:
+                applications.add(app_name)
+
+        return applications if applications else None
+
+    except Exception as e:
+        print(f"Errore durante l'estrazione delle applicazioni dall'HTML: {e}")
+        return None
+
+def read_excel_file(file_path):
+    try:
+        engines = ['openpyxl', 'xlrd', 'odf', 'pyxlsb']
+        for engine in engines:
+            try:
+                return pd.read_excel(file_path, sheet_name='APIs Scope', engine=engine)
+            except Exception as e:
+                print(f"Errore con il motore {engine}: {e}")
+        return None
     except Exception as e:
         print(f"Errore durante la lettura del file Excel: {e}")
-        return
+        return None
 
-    # Chiedi all'utente di inserire il nome del progetto da cercare nella colonna "Project"
-    project_name = input("Inserisci il nome del progetto (es. KAM): ").strip()
+def filter_excel_data(df, keyword):
+    try:
+        if keyword:
+            keyword = keyword.lower()
+            mask = df.apply(lambda row: row.astype(str).str.lower().str.contains(keyword).any(), axis=1)
+            return df[mask]
+        return df
+    except Exception as e:
+        print(f"Errore durante il filtraggio dei dati Excel: {e}")
+        return None
 
-    # Filtra il DataFrame per il valore specificato nella colonna "Project"
-    filtered_df = df[df['Project'] == project_name]
+def find_discrepancies(excel_apps, html_apps):
+    try:
+        html_only = html_apps - excel_apps
+        excel_only = excel_apps - html_apps
+        return html_only, excel_only
+    except Exception as e:
+        print(f"Errore durante la ricerca delle discrepanze: {e}")
+        return None, None
 
-    # Estrai i nomi delle applicazioni (APIs Name) associate al progetto specificato e normalizzali
-    project_apps = {normalize_name(name) for name in filtered_df['APIs Name'].str.strip()}
+def generate_report(output_file_path, keyword, excel_apps, html_only, excel_only):
+    try:
+        with open(output_file_path, 'w', encoding='utf-8') as file:
+            file.write(f"Rapporto di controllo per il keyword '{keyword if keyword else 'Non specificato'}'\n\n")
+            file.write("Nomi delle applicazioni:\n")
+            for name in sorted(excel_apps):
+                file.write(f"{name}\n")
 
-    # Trova i nomi delle applicazioni HTML che non sono presenti nel DataFrame filtrato
-    html_not_in_excel = html_texts.difference(project_apps)
+            file.write("\nDiscrepanze tra HTML ed Excel:\n")
+            file.write("Applicazioni trovate solo nell'HTML:\n")
+            for name in sorted(html_only):
+                file.write(f"{name}\n")
 
-    # Stampa i nomi unici trovati
-    if html_not_in_excel:
-        print(f"Applicazioni mancanti per il progetto '{project_name}':")
-        for name in html_not_in_excel:
-            print(name)
-    else:
-        print(f"Nessuna applicazione mancante per il progetto '{project_name}'.")
+            file.write("\nApplicazioni trovate solo nell'Excel:\n")
+            for name in sorted(excel_only):
+                file.write(f"{name}\n")
+
+        print(f"Rapporto generato con successo: {output_file_path}")
+
+    except Exception as e:
+        print(f"Errore durante la generazione del rapporto: {e}")
+
+def main():
+    try:
+        html_file_path = r'C:\Users\kevin\Documents\Automatizzazioni\FSTR_PROD.html'
+        excel_file_path = r'C:\Users\kevin\Documents\Automatizzazioni\FSTR.xlsx'
+        output_file_path = r'C:\Users\kevin\Desktop\OutputScope\SupportScopeReport.txt'
+        class_name = 'sc-csuQGl fgtqry'  # Classe HTML corretta per i nomi delle applicazioni
+
+        keyword = input("Inserisci il keyword per il filtro (es. KAM) o premi invio per saltare il filtro: ").strip()
+
+        website_content = read_html_content(html_file_path)
+        if website_content is None:
+            return
+
+        df = read_excel_file(excel_file_path)
+        if df is None:
+            print(f"Errore durante la lettura del file Excel: {excel_file_path}")
+            return
+
+        filtered_df = filter_excel_data(df, keyword)
+        if filtered_df is None:
+            print(f"Errore durante il filtraggio del file Excel per il keyword {keyword}")
+            return
+
+        excel_apps = set(filtered_df['APIs Name'].dropna().str.strip().str.lower())
+
+        html_apps = extract_applications_from_html(website_content, class_name, excel_apps)
+        if html_apps is None:
+            print("Applicazioni non trovate nell'HTML. Impossibile procedere con il confronto.")
+            return
+
+        html_only, excel_only = find_discrepancies(excel_apps, html_apps)
+
+        generate_report(output_file_path, keyword, excel_apps, html_only, excel_only)
+
+    except Exception as e:
+        print(f"Errore durante l'esecuzione del programma: {e}")
 
 if __name__ == "__main__":
     main()

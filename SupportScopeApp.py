@@ -33,36 +33,65 @@ def read_excel_file(file_path):
             print(f"Errore con il motore {engine}: {e}")
     return None
 
-def extract_runtime_version_from_html(html_content):
+def extract_runtime_versions_from_html(html_content):
     try:
         soup = BeautifulSoup(html_content, 'html.parser')
-        runtime_versions = []
+        runtime_versions = {}
 
-        # Trova tutti gli span con attributo data-testid
-        spans = soup.find_all('span', {'data-testid': True})
+        # Trova tutti i div con la classe 'public_fixedDataTableCell_cellContent'
+        divs = soup.find_all('div', class_='public_fixedDataTableCell_cellContent')
         
-        # Estrai il testo contenuto in ciascuno span trovato
-        for span in spans:
-            runtime_versions.append(span.text.strip())
+        for div in divs:
+            # Trova tutti i tag <span> all'interno del div corrente
+            spans = div.find_all('span', {'data-testid': re.compile(r'.*-runtime-version-base-version$')})
+            
+            for span in spans:
+                # Estrai il nome dell'applicazione dal data-testid
+                app_name = span['data-testid'].split('-runtime-version-base-version')[0]
+                # Estrai il contenuto del tag span
+                version = span.text.strip()
+                # Aggiungi alla lista delle versioni di runtime
+                runtime_versions[app_name] = version
 
-        return soup, runtime_versions
-    
+        return runtime_versions if runtime_versions else None
+
     except Exception as e:
-        print(f"Errore durante l'estrazione della versione di runtime dall'HTML: {e}")
-        return None, None
+        print(f"Errore durante l'estrazione delle versioni di runtime dall'HTML: {e}")
+        return None
+
+def generate_report_file(output_file_path, project_name, project_apps, discrepancies, runtime_versions_html):
+    try:
+        with open(output_file_path, 'w', encoding='utf-8') as file:
+            file.write(f"Rapporto di controllo per il progetto '{project_name if project_name else 'Non specificato'}'\n")
+            file.write("\nNomi delle applicazioni:\n")
+            for name in project_apps:
+                file.write(f"{name}\n")
+            
+            file.write("\nDiscrepanze nelle versioni di runtime tra HTML e Excel:\n")
+            if discrepancies:
+                for name in discrepancies:
+                    file.write(f"{name}\n")
+            else:
+                file.write("Nessuna discrepanza trovata.\n")
+            
+            file.write("\nVersione di runtime dall'HTML:\n")
+            for app_name, version in runtime_versions_html.items():
+                file.write(f"{app_name}: {version}\n")
+    except Exception as e:
+        print(f"Errore durante la scrittura del file di report: {e}")
 
 def main():
     html_file_path = r'C:\Users\kevin\Documents\Automatizzazioni\FSTR_PROD.html'
     excel_file_path = r'C:\Users\kevin\Documents\Automatizzazioni\FSTR.xlsx'
+    output_file_path = r'C:\Users\kevin\Documents\Automatizzazioni\SupportScopeReport.txt'
 
     website_content = read_html_content(html_file_path)
     if website_content is None:
         return
 
-    soup, runtime_versions_html = extract_runtime_version_from_html(website_content)
-    if runtime_versions_html is None or not runtime_versions_html:
-        print("Tag di versione di runtime non trovato nell'HTML.")
-        print("Versione di runtime non trovata nell'HTML. Impossibile procedere con il confronto.")
+    runtime_versions_html = extract_runtime_versions_from_html(website_content)
+    if not runtime_versions_html:
+        print("Versioni di runtime non trovate nell'HTML. Impossibile procedere con il confronto.")
         return
 
     df = read_excel_file(excel_file_path)
@@ -78,7 +107,7 @@ def main():
             print(f"Il progetto '{project_name}' non è stato trovato in nessuna colonna.")
             return
 
-        filtered_df = df[df[project_column].astype(str) == project_name]
+        filtered_df = df[df[project_column].astype(str).str.lower() == project_name.lower()]
         project_apps = {name.strip().lower() for name in filtered_df['APIs Name'].dropna()}
     else:
         project_apps = {name.strip().lower() for name in df['APIs Name'].dropna()}
@@ -87,33 +116,20 @@ def main():
     for name in project_apps:
         print(name)
 
-    # Dizionari per mappare nomi normalizzati a nomi originali
-    normalized_html_texts = {}
-    for name in project_apps:
-        normalized_name = normalize_name(name)
-        normalized_html_texts.setdefault(normalized_name, set()).add(name)
-
-    # Controllo con HTML
     discrepancies = set()
-    for norm_name, original_names in normalized_html_texts.items():
-        # Controlla la versione di runtime per ogni applicazione
-        for app_name in original_names:
-            # Estrai la versione di runtime corrispondente dall'HTML
-            runtime_version_html = None
-            for span in soup.find_all('span', {'data-testid': True}):
-                if app_name in span.text.strip().lower():
-                    runtime_version_html = span.text.strip()
-                    break
-            
-            if runtime_version_html is None:
-                print(f"Versione di runtime non trovata per l'applicazione '{app_name}' nell'HTML.")
-                discrepancies.add(app_name)
-            else:
-                # Trova la versione di runtime corrispondente nell'Excel
+    for app_name in project_apps:
+        # Verifica se il nome dell'applicazione è presente nelle versioni di runtime estratte dall'HTML
+        if app_name in runtime_versions_html:
+            try:
                 runtime_version_excel = df.loc[df['APIs Name'].str.lower() == app_name]['Runtime Version'].iloc[0]
+                runtime_version_html = runtime_versions_html[app_name]
 
                 if runtime_version_html.strip() != runtime_version_excel.strip():
                     discrepancies.add(app_name)
+            except KeyError:
+                print(f"Colonna 'Runtime Version' non trovata nel dataframe per l'applicazione '{app_name}'.")
+        else:
+            print(f"Versione di runtime non trovata per '{app_name}' nell'HTML.")
 
     if discrepancies:
         print(f"\nDiscrepanze nelle versioni di runtime tra HTML e Excel per il progetto '{project_name if project_name else 'Non specificato'}':")
@@ -121,6 +137,8 @@ def main():
             print(name)
     else:
         print(f"\nNessuna discrepanza nelle versioni di runtime tra HTML e Excel per il progetto '{project_name if project_name else 'Non specificato'}'.")
+
+    generate_report_file(output_file_path, project_name, project_apps, discrepancies, runtime_versions_html)
 
 if __name__ == "__main__":
     main()

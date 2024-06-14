@@ -1,0 +1,9 @@
+*.log
+.DS_Store
+.idea/
+*.iml
+.env
+.env.local
+.vscode/
+node_modules/
+vendor/

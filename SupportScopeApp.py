@@ -1,6 +1,7 @@
 import pandas as pd
 from bs4 import BeautifulSoup
 import re
+from fuzzywuzzy import fuzz
 
 def read_html_content(html_file_path):
     try:
@@ -15,7 +16,7 @@ def read_html_content(html_file_path):
         return None
 
 def normalize_name(name):
-    # Rimuove eventuali suffissi di ambiente e versioni
+    # Rimuove solo i suffissi di ambiente noti
     return re.sub(r'-(qa|staging|stagging|recette|test|prod)-.*$', '', name.strip().lower())
 
 def find_column_with_value(df, value):
@@ -80,6 +81,18 @@ def generate_report_file(output_file_path, project_name, project_apps, discrepan
     except Exception as e:
         print(f"Errore durante la scrittura del file di report: {e}")
 
+def find_best_match(name, names_list):
+    best_match = None
+    max_similarity = -1
+    
+    for candidate in names_list:
+        similarity = fuzz.ratio(name, candidate)
+        if similarity > max_similarity:
+            max_similarity = similarity
+            best_match = candidate
+            
+    return best_match
+
 def main():
     html_file_path = r'C:\Users\kevin\Documents\Automatizzazioni\FSTR_PROD.html'
     excel_file_path = r'C:\Users\kevin\Documents\Automatizzazioni\FSTR.xlsx'
@@ -119,10 +132,12 @@ def main():
     discrepancies = set()
     for app_name in project_apps:
         # Verifica se il nome dell'applicazione è presente nelle versioni di runtime estratte dall'HTML
-        if app_name in runtime_versions_html:
+        best_match_html = find_best_match(app_name, runtime_versions_html.keys())
+        
+        if best_match_html is not None:
             try:
                 runtime_version_excel = df.loc[df['APIs Name'].str.lower() == app_name]['Runtime Version'].iloc[0]
-                runtime_version_html = runtime_versions_html[app_name]
+                runtime_version_html = runtime_versions_html[best_match_html]
 
                 if runtime_version_html.strip() != runtime_version_excel.strip():
                     discrepancies.add(app_name)

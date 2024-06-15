@@ -6,3 +6,7 @@
 5. same with the name of application found in html and excel;
 
 !! Need to understand why DIOR and Tiffany are missing some app !!
+
+Bouygues OK
+FSTR OK
+LVMH NO

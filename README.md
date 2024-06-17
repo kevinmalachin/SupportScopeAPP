@@ -10,3 +10,4 @@
 Bouygues OK
 FSTR OK
 LVMH NO
+MSC OK

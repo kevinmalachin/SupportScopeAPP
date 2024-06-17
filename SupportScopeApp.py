@@ -111,8 +111,8 @@ def generate_report(output_file_path, keyword, excel_apps, html_only, excel_only
 
 def main():
     try:
-        html_file_path = r'C:\Users\kevin\Documents\Automatizzazioni\Bouygues.html'
-        excel_file_path = r'C:\Users\kevin\Documents\Automatizzazioni\Bouygues.xlsx'
+        html_file_path = r'C:\Users\kevin\Documents\Automatizzazioni\LVMH_EAME_PROD.html'
+        excel_file_path = r'C:\Users\kevin\Documents\Automatizzazioni\LVMH.xlsx'
         output_file_path = r'C:\Users\kevin\Desktop\OutputScope\SupportScopeReport.txt'
         class_name = 'sc-csuQGl fgtqry'  # Classe HTML corretta per i nomi delle applicazioni
 
